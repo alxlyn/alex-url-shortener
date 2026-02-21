@@ -15,13 +15,24 @@ def home():
 def shorten():
     long_url = request.form.get("long_url", "").strip()
     code = generate_code()
-    url_map[code] = long_url
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            "INSERT INTO urls (code, long_url) VALUES (?, ?)",
+            (code, long_url)
+        )
+    conn.commit()
     short_url = request.host_url + code
     return render_template("index.html", short_url=short_url, long_url=long_url)
 
 @app.route("/<code>")
 def redirect_to_url(code):
-    long_url = url_map.get(code)
+    with sqlite3.connect(DB_PATH) as conn:
+        row = conn.execute(
+            "SELECT long_url FROM urls WHERE code = ?",
+            (code,)
+        ).fetchone()
+
+    long_url = row[0] if row else None
     if long_url:
         return redirect(long_url)
     return "URL not found", 404
