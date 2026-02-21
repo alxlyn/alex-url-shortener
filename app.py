@@ -1,8 +1,10 @@
 import string
 import secrets
+import sqlite3
 from flask import Flask, render_template, request, redirect
 
 app = Flask(__name__)
+DB_PATH = "database.db"
 url_map = {}
 
 @app.route("/")
@@ -28,5 +30,15 @@ def generate_code(length=6):
     alphabet = string.ascii_letters + string.digits
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
+def init_db():
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS urls (
+                code TEXT PRIMARY KEY,
+                long_url TEXT NOT NULL
+            )
+        """)
+        conn.commit()
 if __name__ == "__main__":
     app.run(debug=True)
+    init_db()
