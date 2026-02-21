@@ -7,7 +7,7 @@
     <h1>URL Shortener</h1>
 
     <form method="POST" action="/shorten">
-        <input type="url" name="long_url" placeholder="Enter long URL" required>
+        <input type="text" name="long_url" placeholder="Enter long URL" required>
         <button type="submit">Shorten</button>
     </form>
 
@@ -16,6 +16,6 @@
         <p>Short link: 
             <a href="{{ short_url }}">{{ short_url }}</a></p>
     {% endif %}
-    
+
 </body>
 </html>
