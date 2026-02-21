@@ -5,8 +5,9 @@
 </head>
 <body>
     <h1>URL Shortener</h1>
-    <form>
-        <input type="text" placeholder="Enter long URL here">
+
+    <form method="POST" action="/shorten">
+        <input type="url" name="long_url" placeholder="Enter long URL" required>
         <button type="submit">Shorten</button>
     </form>
 </body>
