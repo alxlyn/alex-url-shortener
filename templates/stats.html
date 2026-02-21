@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Link Stats</title>
+</head>
+<body>
+  <h1>Link Stats</h1>
+
+  {% if error %}
+    <p>{{ error }}</p>
+  {% else %}
+    <p><b>Code:</b> {{ code }}</p>
+    <p><b>Long URL:</b> <a href="{{ long_url }}">{{ long_url }}</a></p>
+    <p><b>Clicks:</b> {{ clicks }}</p>
+    <p><b>Created:</b> {{ created_at or "Unknown" }}</p>
+  {% endif %}
+
+  <p><a href="/">Back</a></p>
+</body>
+</html>

@@ -111,7 +111,27 @@ def stats(code):
         clicks=clicks,
         created_at=created_at
     )
-    
+
+@app.route("/stats/<code>")
+def link_stats(code):
+    with sqlite3.connect(DB_PATH) as conn:
+        row = conn.execute(
+            "SELECT long_url, clicks, created_at FROM urls WHERE code = ?",
+            (code,)
+        ).fetchone()
+
+    if not row:
+        return render_template("stats.html", error="Short link not found.", code=code)
+
+    long_url, clicks, created_at = row
+    return render_template(
+        "stats.html",
+        error=None,
+        code=code,
+        long_url=long_url,
+        clicks=clicks,
+        created_at=created_at
+    )
 if __name__ == "__main__":
     init_db()
     app.run(debug=True)
