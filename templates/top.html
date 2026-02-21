@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Top Links</title>
+</head>
+<body>
+  <h1>Top Links</h1>
+
+  {% if links|length == 0 %}
+    <p>No links yet.</p>
+  {% else %}
+    <table border="1" cellpadding="6">
+      <tr>
+        <th>Rank</th>
+        <th>Code</th>
+        <th>Clicks</th>
+        <th>Long URL</th>
+        <th>Stats</th>
+      </tr>
+      {% for item in links %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td><a href="/{{ item.code }}">{{ item.code }}</a></td>
+        <td>{{ item.clicks }}</td>
+        <td><a href="{{ item.long_url }}">{{ item.long_url }}</a></td>
+        <td><a href="/stats/{{ item.code }}">View</a></td>
+      </tr>
+      {% endfor %}
+    </table>
+  {% endif %}
+
+  <p><a href="/">Back</a></p>
+</body>
+</html>
