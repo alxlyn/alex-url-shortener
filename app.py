@@ -95,27 +95,6 @@ def stats(code):
         created_at=created_at
     )
 
-@app.route("/stats/<code>")
-def link_stats(code):
-    with sqlite3.connect(DB_PATH) as conn:
-        row = conn.execute(
-            "SELECT long_url, clicks, created_at FROM urls WHERE code = ?",
-            (code,)
-        ).fetchone()
-
-    if not row:
-        return render_template("stats.html", error="Short link not found.", code=code)
-
-    long_url, clicks, created_at = row
-    return render_template(
-        "stats.html",
-        error=None,
-        code=code,
-        long_url=long_url,
-        clicks=clicks,
-        created_at=created_at
-    )
-
 @app.route("/top")
 def top_links():
     with sqlite3.connect(DB_PATH) as conn:
@@ -156,7 +135,6 @@ def init_db():
                 long_url TEXT NOT NULL
             )
         """)
-        conn.commit()
         # Simple schema migration:
         # Add new columns if they don't exist yet.
         try:
@@ -168,7 +146,7 @@ def init_db():
             conn.execute("ALTER TABLE urls ADD COLUMN clicks INTEGER DEFAULT 0")
         except sqlite3.OperationalError:
             pass
-
+        conn.commit()
 
 if __name__ == "__main__":
     init_db()
