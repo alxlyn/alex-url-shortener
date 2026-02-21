@@ -8,11 +8,13 @@
 
   {% if error %}
     <p>{{ error }}</p>
+    <p>Check the code and try again.</p>
   {% else %}
     <p><b>Code:</b> {{ code }}</p>
     <p><b>Long URL:</b> <a href="{{ long_url }}">{{ long_url }}</a></p>
     <p><b>Clicks:</b> {{ clicks }}</p>
     <p><b>Created:</b> {{ created_at or "Unknown" }}</p>
+    <p><b>Short link:</b> <a href="/{{ code }}">/{{ code }}</a></p>
   {% endif %}
 
   <p><a href="/">Back</a></p>

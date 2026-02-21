@@ -100,7 +100,7 @@ def stats(code):
         ).fetchone()
 
     if not row:
-        return render_template("stats.html", error="Short link not found.", code=code)
+        return render_template("stats.html", error="Short link not found.", code=code), 404
 
     long_url, clicks, created_at = row
     return render_template(
