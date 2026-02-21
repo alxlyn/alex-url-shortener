@@ -10,5 +10,12 @@
         <input type="url" name="long_url" placeholder="Enter long URL" required>
         <button type="submit">Shorten</button>
     </form>
+
+    {% if short_url %}
+        <p>Original: {{ long_url }}</p>
+        <p>Short link: 
+            <a href="{{ short_url }}">{{ short_url }}</a></p>
+    {% endif %}
+    
 </body>
 </html>
