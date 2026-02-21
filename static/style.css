@@ -1,0 +1,44 @@
+body {
+  font-family: Arial, sans-serif;
+  max-width: 900px;
+  margin: 40px auto;
+  padding: 0 16px;
+}
+
+a { text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.card {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: 12px;
+}
+
+th, td {
+  border: 1px solid #ddd;
+  padding: 10px;
+  text-align: left;
+}
+
+th {
+  background: #f7f7f7;
+}
+
+input[type="text"] {
+  width: 100%;
+  max-width: 600px;
+  padding: 10px;
+  margin-right: 8px;
+}
+
+button {
+  padding: 10px 14px;
+  cursor: pointer;
+}
