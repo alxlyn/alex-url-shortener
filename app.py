@@ -1,6 +1,7 @@
 import string
 import secrets
 import sqlite3
+from datetime import datetime, timezone
 from flask import Flask, render_template, request, redirect
 
 MAX_CODE_ATTEMPTS = 10
@@ -30,6 +31,7 @@ def home():
 @app.route("/shorten", methods=["POST"])
 def shorten():
     long_url = normalize_url(request.form.get("long_url", ""))
+    created_at = datetime.now(timezone.utc).isoformat()
     if not long_url:
         return "Please enter a valid URL.", 400
     for _ in range(MAX_CODE_ATTEMPTS):
@@ -37,8 +39,8 @@ def shorten():
         try:
             with sqlite3.connect(DB_PATH) as conn:
                 conn.execute(
-                    "INSERT INTO urls (code, long_url) VALUES (?, ?)",
-                    (code, long_url)
+                    "INSERT INTO urls (code, long_url, created_at, clicks) VALUES (?, ?, ?, 0)",
+                    (code, long_url, created_at)
                 )
                 conn.commit()
             break
@@ -53,12 +55,15 @@ def shorten():
 def redirect_to_url(code):
     with sqlite3.connect(DB_PATH) as conn:
         row = conn.execute(
-            "SELECT long_url FROM urls WHERE code = ?",
+            "SELECT long_url, clicks FROM urls WHERE code = ?",
             (code,)
         ).fetchone()
 
     long_url = row[0] if row else None
     if long_url:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("UPDATE urls SET clicks = clicks + 1 WHERE code = ?", (code,))
+            conn.commit()
         return redirect(long_url)
     return "URL not found", 404
 
@@ -75,6 +80,38 @@ def init_db():
             )
         """)
         conn.commit()
+        # Add columns if they don't exist yet (simple migration)
+        try:
+            conn.execute("ALTER TABLE urls ADD COLUMN created_at TEXT")
+        except sqlite3.OperationalError:
+            pass
+
+        try:
+            conn.execute("ALTER TABLE urls ADD COLUMN clicks INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+
+@app.route("/stats/<code>")
+def stats(code):
+    with sqlite3.connect(DB_PATH) as conn:
+        row = conn.execute(
+            "SELECT long_url, clicks, created_at FROM urls WHERE code = ?",
+            (code,)
+        ).fetchone()
+
+    if not row:
+        return render_template("stats.html", error="Short link not found.", code=code)
+
+    long_url, clicks, created_at = row
+    return render_template(
+        "stats.html",
+        error=None,
+        code=code,
+        long_url=long_url,
+        clicks=clicks,
+        created_at=created_at
+    )
+    
 if __name__ == "__main__":
     init_db()
     app.run(debug=True)
