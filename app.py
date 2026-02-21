@@ -8,13 +8,30 @@ MAX_CODE_ATTEMPTS = 10
 app = Flask(__name__)
 DB_PATH = "database.db"
 
+def normalize_url(raw: str) -> str | None:
+    url = (raw or "").strip()
+
+    if not url:
+        return None
+
+    lower = url.lower()
+    if lower.startswith("javascript:") or lower.startswith("data:") or lower.startswith("file:"):
+        return None
+
+    if not (lower.startswith("http://") or lower.startswith("https://")):
+        url = "https://" + url
+
+    return url
+
 @app.route("/")
 def home():
     return render_template("index.html", short_url=None)
 
 @app.route("/shorten", methods=["POST"])
 def shorten():
-    long_url = request.form.get("long_url", "").strip()
+    long_url = normalize_url(request.form.get("long_url", ""))
+    if not long_url:
+        return "Please enter a valid URL.", 400
     for _ in range(MAX_CODE_ATTEMPTS):
         code = generate_code()
         try:
