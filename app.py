@@ -26,7 +26,7 @@ def normalize_url(raw: str) -> str | None:
 
 @app.route("/")
 def home():
-    return render_template("index.html", short_url=None)
+    return render_template("index.html", short_url=None, code=None)
 
 @app.route("/shorten", methods=["POST"])
 def shorten():
@@ -49,7 +49,7 @@ def shorten():
     else:
         return "Could not generate a unique short code. Try again.", 500       
     short_url = request.host_url + code
-    return render_template("index.html", short_url=short_url, long_url=long_url)
+    return render_template("index.html", short_url=short_url, long_url=long_url, code=code)
 
 @app.route("/<code>")
 def redirect_to_url(code):
