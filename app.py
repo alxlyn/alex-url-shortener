@@ -132,6 +132,18 @@ def link_stats(code):
         clicks=clicks,
         created_at=created_at
     )
+
+@app.route("/top")
+def top_links():
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT code, long_url, clicks FROM urls ORDER BY clicks DESC, code ASC LIMIT 10"
+        ).fetchall()
+
+    return render_template("top.html", links=rows)
+
+
 if __name__ == "__main__":
     init_db()
     app.run(debug=True)
