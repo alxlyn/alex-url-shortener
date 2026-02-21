@@ -3,9 +3,10 @@ import secrets
 import sqlite3
 from flask import Flask, render_template, request, redirect
 
+MAX_CODE_ATTEMPTS = 10
+
 app = Flask(__name__)
 DB_PATH = "database.db"
-url_map = {}
 
 @app.route("/")
 def home():
@@ -14,13 +15,20 @@ def home():
 @app.route("/shorten", methods=["POST"])
 def shorten():
     long_url = request.form.get("long_url", "").strip()
-    code = generate_code()
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute(
-            "INSERT INTO urls (code, long_url) VALUES (?, ?)",
-            (code, long_url)
-        )
-    conn.commit()
+    for _ in range(MAX_CODE_ATTEMPTS):
+        code = generate_code()
+        try:
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.execute(
+                    "INSERT INTO urls (code, long_url) VALUES (?, ?)",
+                    (code, long_url)
+                )
+                conn.commit()
+            break
+        except sqlite3.IntegrityError:
+            continue
+    else:
+        return "Could not generate a unique short code. Try again.", 500       
     short_url = request.host_url + code
     return render_template("index.html", short_url=short_url, long_url=long_url)
 
@@ -51,5 +59,6 @@ def init_db():
         """)
         conn.commit()
 if __name__ == "__main__":
-    app.run(debug=True)
     init_db()
+    app.run(debug=True)
+    
