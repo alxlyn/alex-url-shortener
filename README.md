@@ -102,3 +102,12 @@ Visit:
 -   Flask
 -   gunicorn (for deployment)
 
+## Uniqueness Validation (10,000 links)
+
+Run:
+
+```bash
+python scripts/validate_uniqueness.py --count 10000
+```
+
+This simulates bulk short-link creation against an in-memory SQLite table using the same collision-retry strategy as the app and verifies all requested links are stored uniquely.
