@@ -14,6 +14,7 @@ Author: Alex Lian
 import string
 import secrets
 import sqlite3
+import os
 from datetime import datetime, timezone
 from flask import Flask, render_template, request, redirect
 
@@ -24,7 +25,13 @@ from flask import Flask, render_template, request, redirect
 MAX_CODE_ATTEMPTS = 10
 
 app = Flask(__name__)
-DB_PATH = "database.db"
+DB_PATH = os.getenv("DB_PATH")
+if not DB_PATH:
+    DB_PATH = "/tmp/database.db" if os.getenv("K_SERVICE") else "database.db"
+
+
+def get_conn():
+    return sqlite3.connect(DB_PATH, timeout=10)
 
 
 # -------------------------
@@ -45,7 +52,7 @@ def shorten():
     for _ in range(MAX_CODE_ATTEMPTS):
         code = generate_code()
         try:
-            with sqlite3.connect(DB_PATH) as conn:
+            with get_conn() as conn:
                 conn.execute(
                     "INSERT INTO urls (code, long_url, created_at, clicks) VALUES (?, ?, ?, 0)",
                     (code, long_url, created_at)
@@ -61,7 +68,7 @@ def shorten():
 
 @app.route("/<code>")
 def redirect_to_url(code):
-    with sqlite3.connect(DB_PATH) as conn:
+    with get_conn() as conn:
         row = conn.execute(
             "SELECT long_url, clicks FROM urls WHERE code = ?",
             (code,)
@@ -69,14 +76,14 @@ def redirect_to_url(code):
 
     long_url = row[0] if row else None
     if long_url:
-        with sqlite3.connect(DB_PATH) as conn:
+        with get_conn() as conn:
             conn.execute("UPDATE urls SET clicks = clicks + 1 WHERE code = ?", (code,))
             conn.commit()
         return redirect(long_url)
     return "URL not found", 404
 @app.route("/stats/<code>")
 def stats(code):
-    with sqlite3.connect(DB_PATH) as conn:
+    with get_conn() as conn:
         row = conn.execute(
             "SELECT long_url, clicks, created_at FROM urls WHERE code = ?",
             (code,)
@@ -97,7 +104,7 @@ def stats(code):
 
 @app.route("/top")
 def top_links():
-    with sqlite3.connect(DB_PATH) as conn:
+    with get_conn() as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT code, long_url, clicks FROM urls ORDER BY clicks DESC, code ASC LIMIT 10"
@@ -128,7 +135,7 @@ def generate_code(length=6):
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
 def init_db():
-    with sqlite3.connect(DB_PATH) as conn:
+    with get_conn() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS urls (
                 code TEXT PRIMARY KEY,
@@ -148,7 +155,9 @@ def init_db():
             pass
         conn.commit()
 
+# Ensure schema exists when app is loaded by Gunicorn/Cloud Run.
+init_db()
+
 if __name__ == "__main__":
-    init_db()
     app.run(debug=True)
     
