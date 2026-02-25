@@ -4,7 +4,7 @@ Flask URL Shortener
 Features:
 - Random short code generation
 - Optional custom alias support (future-ready)
-- SQLite persistence
+- PostgreSQL persistence
 - Click tracking and created_at metadata
 - Stats page per short link
 - Top links leaderboard
@@ -13,10 +13,12 @@ Author: Alex Lian
 """
 import string
 import secrets
-import sqlite3
 import os
 from datetime import datetime, timezone
 from flask import Flask, render_template, request, redirect
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # -------------------------
 # Configuration
@@ -25,13 +27,12 @@ from flask import Flask, render_template, request, redirect
 MAX_CODE_ATTEMPTS = 10
 
 app = Flask(__name__)
-DB_PATH = os.getenv("DB_PATH")
-if not DB_PATH:
-    DB_PATH = "/tmp/database.db" if os.getenv("K_SERVICE") else "database.db"
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/url_shortener")
 
 
 def get_conn():
-    return sqlite3.connect(DB_PATH, timeout=10)
+    return psycopg2.connect(DATABASE_URL, connect_timeout=10)
 
 
 # -------------------------
@@ -44,7 +45,7 @@ def home():
 @app.route("/shorten", methods=["POST"])
 def shorten():
     long_url = normalize_url(request.form.get("long_url", ""))
-    created_at = datetime.now(timezone.utc).isoformat()
+    created_at = datetime.now(timezone.utc)
     if not long_url:
         return "Please enter a valid URL.", 400
     # Attempt to insert a randomly generated short code.
@@ -53,13 +54,13 @@ def shorten():
         code = generate_code()
         try:
             with get_conn() as conn:
-                conn.execute(
-                    "INSERT INTO urls (code, long_url, created_at, clicks) VALUES (?, ?, ?, 0)",
-                    (code, long_url, created_at)
-                )
-                conn.commit()
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO urls (code, long_url, created_at, clicks) VALUES (%s, %s, %s, 0)",
+                        (code, long_url, created_at),
+                    )
             break
-        except sqlite3.IntegrityError:
+        except psycopg2.IntegrityError:
             continue
     else:
         return "Could not generate a unique short code. Try again.", 500       
@@ -69,25 +70,29 @@ def shorten():
 @app.route("/<code>")
 def redirect_to_url(code):
     with get_conn() as conn:
-        row = conn.execute(
-            "SELECT long_url, clicks FROM urls WHERE code = ?",
-            (code,)
-        ).fetchone()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT long_url, clicks FROM urls WHERE code = %s",
+                (code,),
+            )
+            row = cur.fetchone()
 
     long_url = row[0] if row else None
     if long_url:
         with get_conn() as conn:
-            conn.execute("UPDATE urls SET clicks = clicks + 1 WHERE code = ?", (code,))
-            conn.commit()
+            with conn.cursor() as cur:
+                cur.execute("UPDATE urls SET clicks = clicks + 1 WHERE code = %s", (code,))
         return redirect(long_url)
     return "URL not found", 404
 @app.route("/stats/<code>")
 def stats(code):
     with get_conn() as conn:
-        row = conn.execute(
-            "SELECT long_url, clicks, created_at FROM urls WHERE code = ?",
-            (code,)
-        ).fetchone()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT long_url, clicks, created_at FROM urls WHERE code = %s",
+                (code,),
+            )
+            row = cur.fetchone()
 
     if not row:
         return render_template("stats.html", error="Short link not found.", code=code), 404
@@ -105,10 +110,11 @@ def stats(code):
 @app.route("/top")
 def top_links():
     with get_conn() as conn:
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            "SELECT code, long_url, clicks FROM urls ORDER BY clicks DESC, code ASC LIMIT 10"
-        ).fetchall()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                "SELECT code, long_url, clicks FROM urls ORDER BY clicks DESC, code ASC LIMIT 10"
+            )
+            rows = cur.fetchall()
 
     return render_template("top.html", links=rows)
 # -------------------------
@@ -136,27 +142,27 @@ def generate_code(length=6):
 
 def init_db():
     with get_conn() as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS urls (
-                code TEXT PRIMARY KEY,
-                long_url TEXT NOT NULL
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS urls (
+                    code TEXT PRIMARY KEY,
+                    long_url TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    clicks INTEGER NOT NULL DEFAULT 0
+                )
+                """
             )
-        """)
-        # Simple schema migration:
-        # Add new columns if they don't exist yet.
-        try:
-            conn.execute("ALTER TABLE urls ADD COLUMN created_at TEXT")
-        except sqlite3.OperationalError:
-            pass
-
-        try:
-            conn.execute("ALTER TABLE urls ADD COLUMN clicks INTEGER DEFAULT 0")
-        except sqlite3.OperationalError:
-            pass
-        conn.commit()
+            cur.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_urls_clicks_code
+                ON urls (clicks DESC, code ASC)
+                """
+            )
 
 # Ensure schema exists when app is loaded by Gunicorn/Cloud Run.
-init_db()
+if os.getenv("SKIP_DB_INIT") != "1":
+    init_db()
 
 if __name__ == "__main__":
     app.run(debug=True)
