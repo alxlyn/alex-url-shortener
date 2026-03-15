@@ -78,7 +78,7 @@ def run_validation(count: int) -> tuple[int, int]:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--count", type=int, default=10000)
+    parser.add_argument("--count", type=int, default=100000)
     args = parser.parse_args()
 
     unique_count, retry_count = run_validation(args.count)
