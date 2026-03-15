@@ -4,3 +4,9 @@ __pycache__/
 .DS_Store
 database.db
 .env
+
+# Test & coverage artifacts
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/

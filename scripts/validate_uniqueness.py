@@ -3,7 +3,7 @@ Validate collision-safe uniqueness by simulating bulk URL creation.
 
 Usage:
     export DATABASE_URL=postgresql://localhost/url_shortener
-    python scripts/validate_uniqueness.py --count 10000
+    python scripts/validate_uniqueness.py --count 100000
 """
 
 import argparse
@@ -18,7 +18,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 os.environ.setdefault("SKIP_DB_INIT", "1")
-from app import MAX_CODE_ATTEMPTS, generate_code
+from app import MAX_CODE_ATTEMPTS, generate_code  # noqa: E402
 
 
 def run_validation(count: int) -> tuple[int, int]:
