@@ -28,24 +28,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
         with:
-          python-version: "3.12"
-          cache: "pip"
+          enable-cache: true
 
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+        run: uv sync --frozen --all-groups
 
       - name: Lint with ruff
-        run: ruff check .
+        run: uv run ruff check .
 
       - name: Run tests
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/url_shortener_test
-        run: pytest tests/ --cov=app --cov-report=xml --cov-report=term-missing
+        run: uv run pytest tests/ --cov=app --cov-report=xml --cov-report=term-missing
 
       - name: Upload coverage report
         uses: codecov/codecov-action@v4
