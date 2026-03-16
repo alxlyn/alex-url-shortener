@@ -8,10 +8,10 @@ CI: GitHub Actions spins up a postgres service container automatically.
 """
 import os
 
-import psycopg2
+import asyncpg
 import pytest
 
-# Must be set before importing app — prevents module-level init_db() from running
+# Must be set before importing app — prevents lifespan from running init_db
 _test_db_url = os.environ.get(
     "TEST_DATABASE_URL",
     "postgresql://localhost/url_shortener_test",
@@ -19,31 +19,36 @@ _test_db_url = os.environ.get(
 os.environ["DATABASE_URL"] = _test_db_url
 os.environ["SKIP_DB_INIT"] = "1"
 
-from app import app as flask_app, init_db  # noqa: E402
-
-
-@pytest.fixture(scope="session", autouse=True)
-def setup_schema():
-    """Create the urls table once for the entire test session."""
-    init_db()
+import app as app_module  # noqa: E402
+from app import app as fastapi_app, init_db  # noqa: E402
 
 
 @pytest.fixture
-def app():
-    flask_app.config["TESTING"] = True
-    return flask_app
+async def db_pool():
+    """Per-test asyncpg pool. Function-scoped so pool and tests share the same event loop.
+
+    Note: httpx ASGITransport does NOT trigger the FastAPI lifespan, so this pool
+    stays as app_module.db_pool throughout the test — routes use it directly.
+    """
+    pool = await asyncpg.create_pool(_test_db_url)
+    app_module.db_pool = pool
+    await init_db()
+    yield pool
+    await pool.close()
+    app_module.db_pool = None
 
 
 @pytest.fixture
-def client(app):
-    return app.test_client()
+async def client(db_pool):
+    """Per-test async HTTP client. Depends on db_pool so the pool is ready before requests."""
+    from httpx import AsyncClient, ASGITransport
+    async with AsyncClient(
+        transport=ASGITransport(app=fastapi_app), base_url="http://test"
+    ) as ac:
+        yield ac
 
 
 @pytest.fixture(autouse=True)
-def clean_db():
+async def clean_db(db_pool):
     """Wipe the urls table before each test to guarantee isolation."""
-    conn = psycopg2.connect(_test_db_url, connect_timeout=10)
-    conn.autocommit = True
-    with conn.cursor() as cur:
-        cur.execute("DELETE FROM urls")
-    conn.close()
+    await db_pool.execute("DELETE FROM urls")
