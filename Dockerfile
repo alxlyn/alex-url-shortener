@@ -11,4 +11,4 @@ COPY . .
 
 ENV PORT=8080
 ENV PATH="/app/.venv/bin:$PATH"
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8080} app:app"]
+CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port ${PORT:-8080}"]
