@@ -12,15 +12,18 @@ Deployed on GCP Cloud Run.
 - Stats page per short link
 - Top 10 leaderboard by click count
 - Server-side URL validation and normalization
+- Per-IP rate limiting via slowapi + Redis (GCP load balancer aware)
 - 34 pytest integration tests with CI on GitHub Actions
 
 ## Tech Stack
 
 - **FastAPI** — async Python web framework
 - **asyncpg** — async PostgreSQL driver with connection pooling
+- **slowapi** — rate limiting middleware (Redis-backed, per-IP)
 - **uvicorn** — ASGI server
 - **uv** — dependency management and lockfile
 - **PostgreSQL** — persistent storage
+- **Redis** — rate limit storage (falls back to in-memory locally)
 - **Docker** — containerized for Cloud Run deployment
 - **GitHub Actions** — CI pipeline (lint + test against live Postgres)
 
@@ -96,5 +99,4 @@ pyproject.toml            # Dependencies + pytest config
 ## Known Limitations
 
 - No authentication / user accounts
-- No rate limiting (planned)
 - No custom aliases (intentionally out of scope)
