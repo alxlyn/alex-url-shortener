@@ -52,3 +52,21 @@ async def client(db_pool):
 async def clean_db(db_pool):
     """Wipe the urls table before each test to guarantee isolation."""
     await db_pool.execute("DELETE FROM urls")
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """Reset in-memory rate limit counters between tests.
+
+    The limiter is a module-level singleton initialized at import time with
+    memory:// storage. Its counters persist across tests in the same process —
+    this fixture clears all keys before each test to prevent bleed-over.
+
+    Uses limiter.reset() — slowapi's public API — which internally calls
+    storage.reset() with proper error handling. Does not touch the DB;
+    ordering relative to db_pool/clean_db fixtures is irrelevant.
+    """
+    from app import limiter
+
+    limiter.reset()
+    yield

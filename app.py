@@ -16,6 +16,9 @@ import string
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 import asyncpg
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -28,6 +31,28 @@ from fastapi.templating import Jinja2Templates
 
 MAX_CODE_ATTEMPTS = 10
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/url_shortener")
+REDIS_URL = os.getenv("REDIS_URL", "memory://")
+
+
+def _get_real_ip(request: Request) -> str:
+    """Extract real client IP behind GCP's load balancer.
+
+    Cloud Run sets X-Forwarded-For; without this, all requests would share
+    one rate limit bucket (the load balancer's internal IP).
+    Takes the leftmost value — client-claimed, acceptable for a URL shortener.
+    Falls back to request.client.host or 'unknown' in non-proxied environments.
+    """
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        ip = forwarded_for.split(",")[0].strip()
+        if ip:
+            return ip
+    if request.client:
+        return request.client.host
+    return "unknown"
+
+
+limiter = Limiter(key_func=_get_real_ip, storage_uri=REDIS_URL, headers_enabled=True)
 
 templates = Jinja2Templates(directory="templates")
 db_pool: asyncpg.Pool | None = None
@@ -49,6 +74,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 # -------------------------
@@ -56,6 +84,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # -------------------------
 
 @app.get("/", response_class=HTMLResponse)
+@limiter.limit("30/minute")
 async def home(request: Request):
     return templates.TemplateResponse(
         request, "index.html", {"short_url": None, "code": None}
@@ -63,6 +92,7 @@ async def home(request: Request):
 
 
 @app.post("/shorten", response_class=HTMLResponse)
+@limiter.limit("10/minute")
 async def shorten(request: Request, long_url: str = Form(default="")):
     normalized = normalize_url(long_url)
     if not normalized:
@@ -94,6 +124,7 @@ async def shorten(request: Request, long_url: str = Form(default="")):
 
 
 @app.get("/top", response_class=HTMLResponse)
+@limiter.limit("30/minute")
 async def top_links(request: Request):
     async with db_pool.acquire() as conn:
         rows = await conn.fetch(
@@ -103,6 +134,7 @@ async def top_links(request: Request):
 
 
 @app.get("/stats/{code}", response_class=HTMLResponse)
+@limiter.limit("30/minute")
 async def stats(request: Request, code: str):
     async with db_pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -126,7 +158,8 @@ async def stats(request: Request, code: str):
 
 
 @app.get("/{code}")
-async def redirect_to_url(code: str):
+@limiter.limit("60/minute")
+async def redirect_to_url(request: Request, code: str):
     async with db_pool.acquire() as conn:
         row = await conn.fetchrow("SELECT long_url FROM urls WHERE code = $1", code)
         if not row:
