@@ -206,3 +206,84 @@ class TestTopRoute:
         r = await client.get("/top")
         body = r.text
         assert body.index("second.com") < body.index("first.com")
+
+
+# ─────────────────────────────────────────────
+# Rate Limiting Tests
+# ─────────────────────────────────────────────
+
+
+class TestRateLimiting:
+    """Tests for per-IP rate limiting on all endpoints.
+
+    Each test uses a unique X-Forwarded-For IP so counter state from
+    one test cannot bleed into another (the reset_rate_limiter fixture
+    in conftest.py also handles this via fresh MemoryStorage per test).
+
+    The 10/minute limit on /shorten is the smallest and most practical
+    to test in a loop. Other endpoints get header-presence checks.
+    """
+
+    async def test_shorten_allows_requests_under_limit(self, client):
+        """10 requests to /shorten from the same IP should all succeed."""
+        for i in range(10):
+            response = await client.post(
+                "/shorten",
+                data={"long_url": f"https://example{i}.com"},
+                headers={"X-Forwarded-For": "192.0.2.10"},
+            )
+            assert response.status_code == 200, f"Request {i+1} unexpectedly failed"
+
+    async def test_shorten_blocks_request_over_limit(self, client):
+        """11th request to /shorten from the same IP should return 429."""
+        for _ in range(10):
+            await client.post(
+                "/shorten",
+                data={"long_url": "https://example.com"},
+                headers={"X-Forwarded-For": "192.0.2.11"},
+            )
+        response = await client.post(
+            "/shorten",
+            data={"long_url": "https://example.com"},
+            headers={"X-Forwarded-For": "192.0.2.11"},
+        )
+        assert response.status_code == 429
+
+    async def test_different_ips_have_independent_counters(self, client):
+        """Requests from different IPs do not share a rate limit bucket."""
+        # Exhaust limit for IP A
+        for _ in range(10):
+            await client.post(
+                "/shorten",
+                data={"long_url": "https://example.com"},
+                headers={"X-Forwarded-For": "192.0.2.20"},
+            )
+        # IP A is now limited
+        blocked = await client.post(
+            "/shorten",
+            data={"long_url": "https://example.com"},
+            headers={"X-Forwarded-For": "192.0.2.20"},
+        )
+        assert blocked.status_code == 429
+
+        # IP B should be unaffected
+        allowed = await client.post(
+            "/shorten",
+            data={"long_url": "https://example.com"},
+            headers={"X-Forwarded-For": "192.0.2.21"},
+        )
+        assert allowed.status_code == 200
+
+    async def test_rate_limit_headers_present(self, client):
+        """Responses include X-RateLimit-Limit and X-RateLimit-Remaining.
+
+        Requires headers_enabled=True in the Limiter constructor (see app.py).
+        """
+        response = await client.post(
+            "/shorten",
+            data={"long_url": "https://example.com"},
+            headers={"X-Forwarded-For": "192.0.2.30"},
+        )
+        assert response.status_code == 200
+        assert "x-ratelimit-limit" in response.headers
+        assert "x-ratelimit-remaining" in response.headers
