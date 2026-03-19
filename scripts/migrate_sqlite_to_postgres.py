@@ -2,6 +2,7 @@
 Migrate existing URL data from SQLite into Postgres.
 
 Usage:
+    pip install psycopg2-binary  # one-time, not in main deps
     export DATABASE_URL=postgresql://localhost/url_shortener
     python scripts/migrate_sqlite_to_postgres.py --sqlite-path database.db
 """

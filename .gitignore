@@ -6,8 +6,12 @@ __pycache__/
 database.db
 .env
 
+# Tool caches
+.ruff_cache/
+
 # Test & coverage artifacts
 .coverage
 coverage.xml
 htmlcov/
 .pytest_cache/
+
