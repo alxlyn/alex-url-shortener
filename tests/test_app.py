@@ -204,14 +204,12 @@ class TestTopRoute:
 
 
 class TestRateLimiting:
-    """Tests for per-IP rate limiting on all endpoints.
+    """Per-IP rate limiting.
 
-    Each test uses a unique X-Forwarded-For IP so counter state from
-    one test cannot bleed into another (the reset_rate_limiter fixture
-    in conftest.py also handles this via fresh MemoryStorage per test).
-
-    The 10/minute limit on /shorten is the smallest and most practical
-    to test in a loop. Other endpoints get header-presence checks.
+    Each test uses its own X-Forwarded-For IP, and the reset_rate_limiter
+    fixture in conftest.py calls limiter.reset() before every test.
+    /shorten has the lowest limit (10/minute), so it's the one tested in
+    a loop. The other routes only get header checks.
     """
 
     async def test_shorten_allows_requests_under_limit(self, client):
