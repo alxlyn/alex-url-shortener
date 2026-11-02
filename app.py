@@ -1,15 +1,4 @@
-"""
-FastAPI URL Shortener
-
-Features:
-- Random short code generation
-- PostgreSQL persistence via asyncpg
-- Click tracking and created_at metadata
-- Stats page per short link
-- Top links leaderboard
-
-Author: Alex Lian
-"""
+"""URL shortener: FastAPI, asyncpg and PostgreSQL, with click counts, a stats page and a top-10 page."""
 import os
 import secrets
 import string
@@ -35,12 +24,11 @@ REDIS_URL = os.getenv("REDIS_URL", "memory://")
 
 
 def _get_real_ip(request: Request) -> str:
-    """Extract real client IP behind GCP's load balancer.
+    """Client IP for rate limiting.
 
-    Cloud Run sets X-Forwarded-For; without this, all requests would share
-    one rate limit bucket (the load balancer's internal IP).
-    Takes the leftmost value - client-claimed, acceptable for a URL shortener.
-    Falls back to request.client.host or 'unknown' in non-proxied environments.
+    Behind Cloud Run every request comes from the load balancer, so read
+    X-Forwarded-For. This takes the leftmost entry, which the client can set
+    (see Limitations in the README). Without the header, use the socket address.
     """
     forwarded_for = request.headers.get("X-Forwarded-For")
     if forwarded_for:

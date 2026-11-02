@@ -1,8 +1,6 @@
 """
-Test suite for the URL shortener.
-
-Unit tests: generate_code(), normalize_url() - no DB required.
-Integration tests: all routes - require the test PostgreSQL database.
+Unit tests for generate_code() and normalize_url(), which need no database,
+and integration tests for every route, which use the test database.
 """
 import os
 
@@ -11,9 +9,7 @@ import asyncpg
 from app import generate_code, normalize_url
 
 
-# ─────────────────────────────────────────────
-# Unit Tests - pure functions, no DB
-# ─────────────────────────────────────────────
+# Unit tests (no database)
 
 
 class TestGenerateCode:
@@ -71,9 +67,7 @@ class TestNormalizeUrl:
         assert normalize_url("FILE:///etc/passwd") is None
 
 
-# ─────────────────────────────────────────────
 # Helpers
-# ─────────────────────────────────────────────
 
 
 async def _get_first_code() -> str:
@@ -93,9 +87,7 @@ async def _get_click_count(code: str) -> int:
     return row["clicks"]
 
 
-# ─────────────────────────────────────────────
-# Integration Tests - require DB
-# ─────────────────────────────────────────────
+# Integration tests (test database)
 
 
 class TestHomeRoute:
@@ -208,9 +200,7 @@ class TestTopRoute:
         assert body.index("second.com") < body.index("first.com")
 
 
-# ─────────────────────────────────────────────
-# Rate Limiting Tests
-# ─────────────────────────────────────────────
+# Rate limiting
 
 
 class TestRateLimiting:
