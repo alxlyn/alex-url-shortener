@@ -2,7 +2,7 @@
 
 A small URL shortener built with FastAPI, asyncpg and PostgreSQL. The app code is about 200 lines. It has per-IP rate limiting and a test suite that runs every route against a real Postgres database in CI.
 
-It used to run on Google Cloud Run. That deployment is retired, so there's no live demo, but CI still builds the Docker image on every push.
+An earlier Flask and SQLite version ran on Google Cloud Run in February 2026. This FastAPI and PostgreSQL version has never been deployed, so there's no live demo, but CI builds the Docker image on every push.
 
 ## How it works
 
@@ -12,7 +12,7 @@ Short codes are 6 characters from a 62-character alphabet, generated with `secre
 
 The app keeps one asyncpg pool (2 to 10 connections) for the whole process. It's created in the FastAPI lifespan and closed on shutdown, and each request borrows a connection from it. There's no ORM.
 
-Rate limiting uses slowapi with a separate limit per route: 10 per minute for creating links, 60 for redirects and 30 for pages. Responses include the `X-RateLimit-*` headers. Counters live in memory by default, or in Redis if you set `REDIS_URL`. Behind Cloud Run every request arrives from the load balancer, so the limiter keys on the client IP from `X-Forwarded-For`. Rate limiting was added after the last Cloud Run deploy, so it never ran in production.
+Rate limiting uses slowapi with a separate limit per route: 10 per minute for creating links, 60 for redirects and 30 for pages. Responses include the `X-RateLimit-*` headers. Counters live in memory by default, or in Redis if you set `REDIS_URL`. Behind a load balancer like Cloud Run's, every request arrives from the balancer's address, so the limiter keys on the client IP from `X-Forwarded-For`. Rate limiting came after the Cloud Run deploy, so it never ran in production.
 
 There is one table, `urls(code PK, long_url, created_at, clicks)`, with an index on `(clicks DESC, code)` so the top-10 page reads rows in index order. The schema is in `init_db()` and `scripts/init_postgres.sql`.
 
@@ -66,4 +66,4 @@ DATABASE_URL=postgresql://localhost/url_shortener uv run python scripts/validate
 
 ## Stack
 
-Python 3.12, FastAPI, asyncpg, PostgreSQL, slowapi, Jinja2, uv, Docker, GitHub Actions. Previously deployed on Google Cloud Run.
+Python 3.12, FastAPI, asyncpg, PostgreSQL, slowapi, Jinja2, uv, Docker, GitHub Actions. An earlier Flask version ran on Google Cloud Run.
