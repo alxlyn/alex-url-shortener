@@ -2,7 +2,7 @@
 
 A small URL shortener built with FastAPI, asyncpg and PostgreSQL. The app code is about 200 lines. It has per-IP rate limiting and a test suite that runs every route against a real Postgres database in CI.
 
-It used to run on Google Cloud Run with Cloud SQL. That deployment is retired, so there's no live demo, but CI still builds the Docker image on every push.
+It used to run on Google Cloud Run. That deployment is retired, so there's no live demo, but CI still builds the Docker image on every push.
 
 ## How it works
 
@@ -66,4 +66,4 @@ DATABASE_URL=postgresql://localhost/url_shortener uv run python scripts/validate
 
 ## Stack
 
-Python 3.12, FastAPI, asyncpg, PostgreSQL, slowapi, Jinja2, uv, Docker, GitHub Actions. Previously deployed on Google Cloud Run with Cloud SQL.
+Python 3.12, FastAPI, asyncpg, PostgreSQL, slowapi, Jinja2, uv, Docker, GitHub Actions. Previously deployed on Google Cloud Run.
