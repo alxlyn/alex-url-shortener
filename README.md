@@ -1,10 +1,10 @@
 # Alex URL Shortener
 
-An async URL shortener - FastAPI + PostgreSQL over asyncpg, per-IP rate limiting that reads the client IP from `X-Forwarded-For`, and a CI pipeline that tests every route against a real database. Small enough to read in one sitting (~200 lines of app code), built so every design decision is defensible.
+An async URL shortener - FastAPI + PostgreSQL over asyncpg, per-IP rate limiting that reads the client IP from `X-Forwarded-For`, and a CI pipeline that tests every route against a real database. About 200 lines of app code.
 
 There is no live demo: the Cloud Run deployment has been retired. The image still builds in CI and runs anywhere Docker does.
 
-## Why this is interesting
+## Design decisions
 
 **Collision handling with no pre-check query.** Short codes are 6 chars from a 62-symbol alphabet (`secrets`-based, ~57B keyspace). Instead of SELECT-then-INSERT - which has a race window - `shorten()` just INSERTs and lets the PRIMARY KEY decide: on `asyncpg.UniqueViolationError` it regenerates and retries, up to 10 attempts. `scripts/validate_uniqueness.py` inserts 100,000 codes from the app's `generate_code` into a real Postgres (sequentially, psycopg2 + `ON CONFLICT DO NOTHING`) and fails unless every one is unique. It checks the generator against the PRIMARY KEY, not the app's async retry path or concurrent inserts; at 100k codes in a 57B keyspace the expected number of collisions is about 0.09.
 
