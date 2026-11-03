@@ -18,9 +18,7 @@ async def test_a_path_that_cant_be_a_code_never_reaches_the_database(client, mon
     assert r.status_code == 404
 
 
-def test_templates_and_static_files_load_from_any_working_directory():
-    import os
-
-    import app as app_module
-
-    assert os.path.isabs(app_module.BASE_DIR)
+async def test_templates_and_static_files_load_from_any_working_directory(client, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)  # an empty folder, so relative paths would find nothing
+    assert (await client.get("/")).status_code == 200
+    assert (await client.get("/static/style.css")).status_code == 200

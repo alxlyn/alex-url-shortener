@@ -6,8 +6,8 @@
 !.env.example
 venv
 .venv
-__pycache__
-*.pyc
+**/__pycache__
+**/*.pyc
 .DS_Store
 .pytest_cache
 .ruff_cache
