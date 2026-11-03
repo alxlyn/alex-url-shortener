@@ -43,7 +43,16 @@ def test_accepts(raw, expected):
     "https://SHO.RT/abc123",
     "https://sho.rt./abc123",                         # trailing dot
     "https://\uff53\uff48\uff4f.\uff52\uff54/abc123",  # full-width letters
+    "https://sho.rt\uff0e/abc123",                     # full-width dot at the end
+    "https://sho.rt\u3002/abc123",                     # ideographic full stop
+    "https://\U0001f142\U0001f137\U0001f13e.\U0001f141\U0001f143/abc123",  # squared letters
 ])
 def test_rejects_links_to_the_shortener_itself(monkeypatch, raw):
     monkeypatch.setattr(app_module, "PUBLIC_BASE_URL", "https://sho.rt")
+    assert normalize_url(raw) is None
+
+
+@pytest.mark.parametrize("raw", ["http://127.1:8000/x", "http://0x7f.0.0.1/x", "http://0177.0.0.1/x", "http://127.000.000.001/x"])
+def test_rejects_other_spellings_of_its_own_ip(monkeypatch, raw):
+    monkeypatch.setattr(app_module, "PUBLIC_BASE_URL", "http://127.0.0.1:8000")
     assert normalize_url(raw) is None

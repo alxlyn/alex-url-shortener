@@ -2,7 +2,9 @@
 import os
 import re
 import secrets
+import socket
 import string
+import unicodedata
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
@@ -211,17 +213,31 @@ def normalize_url(raw: str | None) -> str | None:
         return None
     if not host or "@" in parts.netloc:
         return None
-    # Read the host the way a browser does: no trailing dot, in ASCII (so full-width
-    # letters can't spell our own host), and no percent-escapes.
-    try:
-        host = host.rstrip(".").encode("idna").decode("ascii")
-    except UnicodeError:
+    host = browser_host(host)
+    if host is None or "." not in host or not HOST_PATTERN.fullmatch(host):
         return None
-    if "." not in host or not HOST_PATTERN.fullmatch(host):
-        return None
-    if host == urlsplit(PUBLIC_BASE_URL).hostname:
+    if host == browser_host(urlsplit(PUBLIC_BASE_URL).hostname or ""):
         return None
     return url
+
+
+def browser_host(host: str) -> str | None:
+    """The host as a browser would read it, or None if it can't be one.
+
+    NFKC first, the way browsers map hosts (full-width and squared letters become plain
+    ones), then IDNA to ASCII. The trailing dot comes off after that, because the mapping
+    can turn an odd dot into a plain one. IPv4 in any spelling (127.1, 0x7f.0.0.1,
+    0177.0.0.1) becomes its dotted form, so it compares equal to the usual one.
+    """
+    try:
+        host = unicodedata.normalize("NFKC", host).encode("idna").decode("ascii")
+    except UnicodeError:
+        return None
+    host = host.lower().rstrip(".")
+    try:
+        return socket.inet_ntoa(socket.inet_aton(host))
+    except OSError:
+        return host
 
 
 def generate_code(length: int = 6) -> str:
