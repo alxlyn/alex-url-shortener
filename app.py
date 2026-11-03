@@ -211,7 +211,10 @@ def generate_code(length: int = 6) -> str:
 
 
 async def init_db() -> None:
-    async with db_pool.acquire() as conn:
+    async with db_pool.acquire() as conn, conn.transaction():
+        # Several instances can start at once on an empty database. The lock makes them
+        # take turns; it's released when the transaction ends.
+        await conn.execute("SELECT pg_advisory_xact_lock(4242)")
         await conn.execute(
             """
             CREATE TABLE IF NOT EXISTS urls (
