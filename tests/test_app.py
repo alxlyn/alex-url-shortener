@@ -314,6 +314,17 @@ class TestRateLimiting:
             statuses.append(response.status_code)
         assert statuses[-1] == 429
 
+    async def test_a_proxy_entry_that_isnt_an_address_falls_back_to_the_socket(self, client):
+        statuses = []
+        for i in range(11):
+            response = await client.post(
+                "/shorten",
+                data={"long_url": "https://example.com"},
+                headers={"X-Forwarded-For": f"not-an-ip-{i}"},
+            )
+            statuses.append(response.status_code)
+        assert statuses[-1] == 429
+
     async def test_without_a_proxy_the_header_is_ignored(self, client, monkeypatch):
         import app as app_module
 

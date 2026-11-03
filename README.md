@@ -43,7 +43,7 @@ git clone https://github.com/alxlyn/alex-url-shortener.git
 cd alex-url-shortener
 uv sync
 createdb url_shortener
-uv run uvicorn app:app --reload
+uv run uvicorn app:app --reload --no-proxy-headers
 ```
 
 Then open http://127.0.0.1:8000. `DATABASE_URL` defaults to `postgresql://localhost/url_shortener`, and rate limiting uses in-memory storage unless you set `REDIS_URL` (see `.env.example`).

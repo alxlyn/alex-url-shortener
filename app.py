@@ -1,4 +1,5 @@
 """URL shortener: FastAPI, asyncpg and PostgreSQL, with click counts and a stats page."""
+import ipaddress
 import os
 import re
 import secrets
@@ -51,7 +52,10 @@ def _get_real_ip(request: Request) -> str:
         forwarded = ",".join(request.headers.getlist("X-Forwarded-For"))
         hops = [hop.strip() for hop in forwarded.split(",") if hop.strip()]
         if len(hops) >= TRUSTED_PROXY_HOPS:
-            return hops[-TRUSTED_PROXY_HOPS]
+            try:
+                return str(ipaddress.ip_address(hops[-TRUSTED_PROXY_HOPS]))
+            except ValueError:
+                pass  # not an address, so not something a proxy wrote: use the socket
     return request.client.host if request.client else "unknown"
 
 
