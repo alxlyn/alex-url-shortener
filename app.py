@@ -1,4 +1,4 @@
-"""URL shortener: FastAPI, asyncpg and PostgreSQL, with click counts, a stats page and a top-10 page."""
+"""URL shortener: FastAPI, asyncpg and PostgreSQL, with click counts and a stats page."""
 import os
 import re
 import secrets
@@ -123,16 +123,6 @@ async def shorten(request: Request, long_url: str = Form(default="")):
     )
 
 
-@app.get("/top", response_class=HTMLResponse)
-@limiter.limit("30/minute")
-async def top_links(request: Request):
-    async with db_pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT code, clicks FROM urls ORDER BY clicks DESC, code ASC LIMIT 10"
-        )
-    return templates.TemplateResponse(request, "top.html", {"links": rows})
-
-
 @app.get("/stats/{code}", response_class=HTMLResponse)
 @limiter.limit("30/minute")
 async def stats(request: Request, code: str):
@@ -250,7 +240,6 @@ async def init_db() -> None:
             )
             """
         )
-        # No index on clicks: every redirect updates clicks, and an index on that column
-        # stops Postgres from doing cheap in-place (HOT) updates. Sorting a small table for
-        # the top-10 page is cheaper than rewriting the index on every click.
+        # No index on clicks: nothing searches by it, every redirect updates it, and an
+        # index on that column stops Postgres from doing cheap in-place (HOT) updates.
         await conn.execute("DROP INDEX IF EXISTS idx_urls_clicks_code")

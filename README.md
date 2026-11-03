@@ -33,7 +33,6 @@ There are 38 pytest tests. 15 are unit tests for code generation and URL normali
 | POST   | `/shorten`      | Create a short link                  |
 | GET    | `/{code}`       | 302 redirect and click count         |
 | GET    | `/stats/{code}` | Clicks and creation time for a link  |
-| GET    | `/top`          | Top 10 links by clicks               |
 
 ## Run locally
 

@@ -207,34 +207,11 @@ class TestStatsRoute:
         assert r.status_code == 404
 
 
-class TestTopRoute:
-    async def test_empty_db_returns_200(self, client):
+class TestNoPublicListing:
+    async def test_there_is_no_page_listing_other_peoples_links(self, client):
+        # A list of codes leads to /stats/<code>, which shows each destination.
         r = await client.get("/top")
-        assert r.status_code == 200
-
-    async def test_shows_codes_but_not_where_they_go(self, client):
-        await client.post("/shorten", data={"long_url": "https://example.com/reset?token=SECRET123"})
-        code = await _get_first_code()
-        r = await client.get("/top")
-        assert r.status_code == 200
-        assert code in r.text
-        assert "SECRET123" not in r.text
-
-    async def test_orders_by_clicks_descending(self, client, db_pool):
-        await client.post("/shorten", data={"long_url": "https://first.com"})
-        await client.post("/shorten", data={"long_url": "https://second.com"})
-
-        second_code = await db_pool.fetchval(
-            "SELECT code FROM urls WHERE long_url = 'https://second.com'"
-        )
-        await db_pool.execute("UPDATE urls SET clicks = 5 WHERE code = $1", second_code)
-
-        first_code = await db_pool.fetchval(
-            "SELECT code FROM urls WHERE long_url = 'https://first.com'"
-        )
-        r = await client.get("/top")
-        body = r.text
-        assert body.index(second_code) < body.index(first_code)
+        assert r.status_code == 404
 
 
 # Rate limiting
