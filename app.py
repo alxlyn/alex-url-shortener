@@ -120,7 +120,7 @@ async def shorten(request: Request, long_url: str = Form(default="")):
 async def top_links(request: Request):
     async with db_pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT code, long_url, clicks FROM urls ORDER BY clicks DESC, code ASC LIMIT 10"
+            "SELECT code, clicks FROM urls ORDER BY clicks DESC, code ASC LIMIT 10"
         )
     return templates.TemplateResponse(request, "top.html", {"links": rows})
 

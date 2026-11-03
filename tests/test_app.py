@@ -202,11 +202,13 @@ class TestTopRoute:
         r = await client.get("/top")
         assert r.status_code == 200
 
-    async def test_shows_created_links(self, client):
-        await client.post("/shorten", data={"long_url": "https://example.com"})
+    async def test_shows_codes_but_not_where_they_go(self, client):
+        await client.post("/shorten", data={"long_url": "https://example.com/reset?token=SECRET123"})
+        code = await _get_first_code()
         r = await client.get("/top")
         assert r.status_code == 200
-        assert b"example.com" in r.content
+        assert code in r.text
+        assert "SECRET123" not in r.text
 
     async def test_orders_by_clicks_descending(self, client, db_pool):
         await client.post("/shorten", data={"long_url": "https://first.com"})
@@ -217,9 +219,12 @@ class TestTopRoute:
         )
         await db_pool.execute("UPDATE urls SET clicks = 5 WHERE code = $1", second_code)
 
+        first_code = await db_pool.fetchval(
+            "SELECT code FROM urls WHERE long_url = 'https://first.com'"
+        )
         r = await client.get("/top")
         body = r.text
-        assert body.index("second.com") < body.index("first.com")
+        assert body.index(second_code) < body.index(first_code)
 
 
 # Rate limiting
