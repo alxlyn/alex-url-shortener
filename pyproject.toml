@@ -30,3 +30,8 @@ python_functions = ["test_*"]
 addopts = "-v --tb=short"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff.lint]
+# The rules ruff checked by default when this project started. Naming them
+# keeps a ruff upgrade from switching on new ones and failing CI.
+select = ["E4", "E7", "E9", "F"]
