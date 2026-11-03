@@ -3,6 +3,8 @@ Unit tests for generate_code() and normalize_url(), which need no database,
 and integration tests for every route, which use the test database.
 """
 import os
+import re
+import string
 
 import asyncpg
 
@@ -19,14 +21,14 @@ class TestGenerateCode:
     def test_custom_length(self):
         assert len(generate_code(length=10)) == 10
 
-    def test_alphanumeric_only(self):
+    def test_only_ascii_letters_and_digits(self):
+        allowed = set(string.ascii_letters + string.digits)
         for _ in range(100):
-            code = generate_code()
-            assert code.isalnum(), f"Non-alphanumeric character in code: {code!r}"
+            assert set(generate_code()) <= allowed
 
     def test_produces_unique_codes(self):
         codes = {generate_code() for _ in range(200)}
-        # 62^6 ≈ 56B combinations - 200 draws should all be unique
+        # 62^6 is about 57 billion codes, so 200 draws should all differ.
         assert len(codes) == 200
 
 
@@ -101,13 +103,17 @@ class TestShortenRoute:
         r = await client.post("/shorten", data={"long_url": "https://example.com"})
         assert r.status_code == 200
 
-    async def test_response_contains_short_url(self, client):
+    async def test_response_shows_the_stored_short_link(self, client, db_pool):
         r = await client.post("/shorten", data={"long_url": "https://example.com"})
-        assert b"test" in r.content  # base_url is http://test
+        match = re.search(r'href="http://test/([A-Za-z0-9]{6})"', r.text)
+        assert match, "no short link in the page"
+        stored = await db_pool.fetchval("SELECT long_url FROM urls WHERE code = $1", match.group(1))
+        assert stored == "https://example.com"
 
-    async def test_bare_domain_accepted(self, client):
+    async def test_bare_domain_is_stored_with_https(self, client, db_pool):
         r = await client.post("/shorten", data={"long_url": "example.com"})
         assert r.status_code == 200
+        assert await db_pool.fetchval("SELECT long_url FROM urls") == "https://example.com"
 
     async def test_empty_url_returns_400(self, client):
         r = await client.post("/shorten", data={"long_url": ""})
@@ -142,7 +148,7 @@ class TestRedirectRoute:
         await client.post("/shorten", data={"long_url": "https://example.com"})
         code = await _get_first_code()
         r = await client.get(f"/{code}", follow_redirects=False)
-        assert "example.com" in r.headers["location"]
+        assert r.headers["location"] == "https://example.com"
 
     async def test_each_visit_increments_click_count(self, client):
         await client.post("/shorten", data={"long_url": "https://example.com"})
@@ -169,6 +175,14 @@ class TestStatsRoute:
         code = await _get_first_code()
         r = await client.get(f"/stats/{code}")
         assert b"example.com" in r.content
+
+    async def test_shows_the_click_count(self, client):
+        await client.post("/shorten", data={"long_url": "https://example.com"})
+        code = await _get_first_code()
+        await client.get(f"/{code}")
+        await client.get(f"/{code}")
+        r = await client.get(f"/stats/{code}")
+        assert re.search(r"Clicks:</b>\s*2\b", r.text)
 
     async def test_unknown_code_returns_404(self, client):
         r = await client.get("/stats/doesnotexist")
