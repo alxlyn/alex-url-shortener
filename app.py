@@ -21,6 +21,9 @@ from slowapi.middleware import SlowAPIMiddleware
 # -------------------------
 
 MAX_CODE_ATTEMPTS = 10
+CODE_PATTERN = re.compile(r"[A-Za-z0-9]{6}")
+# Absolute paths, so the app also works when imported from another directory.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/url_shortener")
 REDIS_URL = os.getenv("REDIS_URL", "memory://")
 # Short links are built from this, never from the request's Host header, which the client controls.
@@ -46,9 +49,12 @@ def _get_real_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-limiter = Limiter(key_func=_get_real_ip, storage_uri=REDIS_URL, headers_enabled=True)
+# If Redis goes down, count in memory instead of failing every request.
+limiter = Limiter(
+    key_func=_get_real_ip, storage_uri=REDIS_URL, headers_enabled=True, in_memory_fallback_enabled=True
+)
 
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 db_pool: asyncpg.Pool | None = None
 
 
@@ -67,7 +73,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -130,6 +136,11 @@ async def top_links(request: Request):
 @app.get("/stats/{code}", response_class=HTMLResponse)
 @limiter.limit("30/minute")
 async def stats(request: Request, code: str):
+    if not CODE_PATTERN.fullmatch(code):
+        return templates.TemplateResponse(
+            request, "stats.html", {"error": "Short link not found.", "code": code},
+            status_code=404,
+        )
     async with db_pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT long_url, clicks, created_at FROM urls WHERE code = $1", code
@@ -154,6 +165,8 @@ async def stats(request: Request, code: str):
 @app.get("/{code}")
 @limiter.limit("60/minute")
 async def redirect_to_url(request: Request, code: str):
+    if not CODE_PATTERN.fullmatch(code):  # e.g. /favicon.ico: no database round trip
+        return HTMLResponse("URL not found", status_code=404)
     # One statement: count the click and read the destination in a single round trip.
     async with db_pool.acquire() as conn:
         long_url = await conn.fetchval(
