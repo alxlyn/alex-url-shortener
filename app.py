@@ -21,6 +21,8 @@ from slowapi.middleware import SlowAPIMiddleware
 MAX_CODE_ATTEMPTS = 10
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/url_shortener")
 REDIS_URL = os.getenv("REDIS_URL", "memory://")
+# Short links are built from this, never from the request's Host header, which the client controls.
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 
 
 def _get_real_ip(request: Request) -> str:
@@ -105,7 +107,7 @@ async def shorten(request: Request, long_url: str = Form(default="")):
     if code is None:
         return HTMLResponse("Could not generate a unique short code. Try again.", status_code=500)
 
-    short_url = str(request.base_url) + code
+    short_url = f"{PUBLIC_BASE_URL}/{code}"
     return templates.TemplateResponse(
         request, "index.html", {"short_url": short_url, "long_url": normalized, "code": code}
     )

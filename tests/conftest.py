@@ -16,6 +16,7 @@ os.environ["DATABASE_URL"] = _test_db_url
 os.environ["SKIP_DB_INIT"] = "1"
 # Keep rate-limit counters in memory, even if REDIS_URL is set in your shell.
 os.environ["REDIS_URL"] = "memory://"
+os.environ["PUBLIC_BASE_URL"] = "http://test"
 
 import app as app_module  # noqa: E402
 from app import app as fastapi_app, init_db  # noqa: E402

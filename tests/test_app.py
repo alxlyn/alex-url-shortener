@@ -137,6 +137,14 @@ class TestShortenRoute:
         assert count == 1
 
 
+    async def test_short_link_ignores_a_forged_host_header(self, client):
+        r = await client.post(
+            "/shorten", data={"long_url": "https://example.com"}, headers={"host": "evil.example"}
+        )
+        assert "evil.example" not in r.text
+        assert re.search(r'href="http://test/[A-Za-z0-9]{6}"', r.text)
+
+
 class TestRedirectRoute:
     async def test_valid_code_returns_302(self, client):
         await client.post("/shorten", data={"long_url": "https://example.com"})
