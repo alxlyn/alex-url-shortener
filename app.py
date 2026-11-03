@@ -184,6 +184,10 @@ async def redirect_to_url(request: Request, code: str):
 MAX_URL_LENGTH = 2048
 # "word:" at the start that isn't a port number, e.g. "javascript:" or "mailto:".
 SCHEME_PREFIX = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:(?!\d)")
+# "word://" at the start: the URL already names its scheme.
+HAS_SCHEME = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://")
+# What a host may contain once it's in ASCII form.
+HOST_PATTERN = re.compile(r"[a-z0-9._-]+")
 
 
 def normalize_url(raw: str | None) -> str | None:
@@ -198,20 +202,28 @@ def normalize_url(raw: str | None) -> str | None:
     if any(ch.isspace() or ord(ch) < 32 or ord(ch) == 127 for ch in url):
         return None
 
-    if "://" not in url:
+    if not HAS_SCHEME.match(url):
         if url.startswith("//") or SCHEME_PREFIX.match(url):
             return None
         url = "https://" + url
 
-    parts = urlsplit(url)
+    try:
+        parts = urlsplit(url)
+        host = parts.hostname
+        _ = parts.port  # raises ValueError for a port that isn't a number in range
+    except ValueError:  # e.g. an unclosed "[", or characters that change under Unicode normalization
+        return None
     if parts.scheme.lower() not in ("http", "https"):
         return None
-    host = parts.hostname
-    if not host or "." not in host or "@" in parts.netloc:
+    if not host or "@" in parts.netloc:
         return None
+    # Read the host the way a browser does: no trailing dot, in ASCII (so full-width
+    # letters can't spell our own host), and no percent-escapes.
     try:
-        parts.port  # raises ValueError for a port that isn't a number in range
-    except ValueError:
+        host = host.rstrip(".").encode("idna").decode("ascii")
+    except UnicodeError:
+        return None
+    if "." not in host or not HOST_PATTERN.fullmatch(host):
         return None
     if host == urlsplit(PUBLIC_BASE_URL).hostname:
         return None
