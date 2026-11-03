@@ -32,6 +32,8 @@ PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://127.0.0.1:8000").rstrip("
 
 # How many proxies you control sit in front of the app (Cloud Run alone: 1).
 TRUSTED_PROXY_HOPS = int(os.getenv("TRUSTED_PROXY_HOPS", "0"))
+if not 0 <= TRUSTED_PROXY_HOPS <= 5:
+    raise RuntimeError("TRUSTED_PROXY_HOPS must be a number from 0 to 5")
 
 
 def _get_real_ip(request: Request) -> str:
@@ -42,7 +44,9 @@ def _get_real_ip(request: Request) -> str:
     was written by the client and can't be trusted. With no proxy, use the socket.
     """
     if TRUSTED_PROXY_HOPS > 0:
-        forwarded = request.headers.get("X-Forwarded-For", "")
+        # A proxy can add its own X-Forwarded-For line instead of extending the
+        # last one, so read every line, in order.
+        forwarded = ",".join(request.headers.getlist("X-Forwarded-For"))
         hops = [hop.strip() for hop in forwarded.split(",") if hop.strip()]
         if len(hops) >= TRUSTED_PROXY_HOPS:
             return hops[-TRUSTED_PROXY_HOPS]

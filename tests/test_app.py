@@ -302,6 +302,18 @@ class TestRateLimiting:
             statuses.append(response.status_code)
         assert statuses[-1] == 429
 
+    async def test_a_spoofed_first_header_line_does_not_get_a_fresh_bucket(self, client):
+        """Some proxies add a second X-Forwarded-For line instead of extending the first."""
+        statuses = []
+        for i in range(11):
+            response = await client.post(
+                "/shorten",
+                data={"long_url": "https://example.com"},
+                headers=[("X-Forwarded-For", f"198.51.100.{i}"), ("X-Forwarded-For", "192.0.2.50")],
+            )
+            statuses.append(response.status_code)
+        assert statuses[-1] == 429
+
     async def test_without_a_proxy_the_header_is_ignored(self, client, monkeypatch):
         import app as app_module
 
