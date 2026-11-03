@@ -27,21 +27,23 @@ REDIS_URL = os.getenv("REDIS_URL", "memory://")
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 
 
+# How many proxies you control sit in front of the app (Cloud Run alone: 1).
+TRUSTED_PROXY_HOPS = int(os.getenv("TRUSTED_PROXY_HOPS", "0"))
+
+
 def _get_real_ip(request: Request) -> str:
     """Client IP for rate limiting.
 
-    Behind Cloud Run every request comes from the load balancer, so read
-    X-Forwarded-For. This takes the leftmost entry, which the client can set
-    (see Limitations in the README). Without the header, use the socket address.
+    Each proxy appends the address it saw to X-Forwarded-For, so behind N trusted
+    proxies the client is the Nth entry from the right. Everything further left
+    was written by the client and can't be trusted. With no proxy, use the socket.
     """
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        ip = forwarded_for.split(",")[0].strip()
-        if ip:
-            return ip
-    if request.client:
-        return request.client.host
-    return "unknown"
+    if TRUSTED_PROXY_HOPS > 0:
+        forwarded = request.headers.get("X-Forwarded-For", "")
+        hops = [hop.strip() for hop in forwarded.split(",") if hop.strip()]
+        if len(hops) >= TRUSTED_PROXY_HOPS:
+            return hops[-TRUSTED_PROXY_HOPS]
+    return request.client.host if request.client else "unknown"
 
 
 limiter = Limiter(key_func=_get_real_ip, storage_uri=REDIS_URL, headers_enabled=True)

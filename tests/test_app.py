@@ -243,8 +243,8 @@ class TestTopRoute:
 class TestRateLimiting:
     """Per-IP rate limiting.
 
-    Each test uses its own X-Forwarded-For IP, and the reset_rate_limiter
-    fixture in conftest.py calls limiter.reset() before every test.
+    The tests run with TRUSTED_PROXY_HOPS=1 (see conftest.py), so the client is
+    the last X-Forwarded-For entry. limiter.reset() runs before every test.
     /shorten has the lowest limit (10/minute), so it's the one tested in
     a loop. The other routes only get header checks.
     """
@@ -312,3 +312,29 @@ class TestRateLimiting:
         assert response.status_code == 200
         assert "x-ratelimit-limit" in response.headers
         assert "x-ratelimit-remaining" in response.headers
+
+    async def test_a_spoofed_header_does_not_get_a_fresh_bucket(self, client):
+        """The client can write anything left of the proxy's entry; it must not matter."""
+        statuses = []
+        for i in range(11):
+            response = await client.post(
+                "/shorten",
+                data={"long_url": "https://example.com"},
+                headers={"X-Forwarded-For": f"198.51.100.{i}, 192.0.2.40"},
+            )
+            statuses.append(response.status_code)
+        assert statuses[-1] == 429
+
+    async def test_without_a_proxy_the_header_is_ignored(self, client, monkeypatch):
+        import app as app_module
+
+        monkeypatch.setattr(app_module, "TRUSTED_PROXY_HOPS", 0)
+        statuses = []
+        for i in range(11):
+            response = await client.post(
+                "/shorten",
+                data={"long_url": "https://example.com"},
+                headers={"X-Forwarded-For": f"198.51.100.{i}"},
+            )
+            statuses.append(response.status_code)
+        assert statuses[-1] == 429

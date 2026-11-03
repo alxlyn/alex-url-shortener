@@ -17,6 +17,8 @@ os.environ["SKIP_DB_INIT"] = "1"
 # Keep rate-limit counters in memory, even if REDIS_URL is set in your shell.
 os.environ["REDIS_URL"] = "memory://"
 os.environ["PUBLIC_BASE_URL"] = "http://test"
+# Tests act as if one trusted proxy sits in front, so X-Forwarded-For picks the client.
+os.environ["TRUSTED_PROXY_HOPS"] = "1"
 
 import app as app_module  # noqa: E402
 from app import app as fastapi_app, init_db  # noqa: E402
