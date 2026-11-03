@@ -1,9 +1,11 @@
 """URL shortener: FastAPI, asyncpg and PostgreSQL, with click counts, a stats page and a top-10 page."""
 import os
+import re
 import secrets
 import string
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from urllib.parse import urlsplit
 
 import asyncpg
 from fastapi import FastAPI, Form, Request
@@ -162,15 +164,40 @@ async def redirect_to_url(request: Request, code: str):
 # Utility functions
 # -------------------------
 
+MAX_URL_LENGTH = 2048
+# "word:" at the start that isn't a port number, e.g. "javascript:" or "mailto:".
+SCHEME_PREFIX = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:(?!\d)")
+
+
 def normalize_url(raw: str | None) -> str | None:
+    """Return a safe http(s) URL, or None if the input can't be one.
+
+    An allowlist: only http and https, a real host name, no user info, nothing
+    that points back at the shortener, and a length cap.
+    """
     url = (raw or "").strip()
-    if not url:
+    if not url or len(url) > MAX_URL_LENGTH:
         return None
-    lower = url.lower()
-    if lower.startswith(("javascript:", "data:", "file:")):
+    if any(ch.isspace() or ord(ch) < 32 or ord(ch) == 127 for ch in url):
         return None
-    if not (lower.startswith("http://") or lower.startswith("https://")):
+
+    if "://" not in url:
+        if url.startswith("//") or SCHEME_PREFIX.match(url):
+            return None
         url = "https://" + url
+
+    parts = urlsplit(url)
+    if parts.scheme.lower() not in ("http", "https"):
+        return None
+    host = parts.hostname
+    if not host or "." not in host or "@" in parts.netloc:
+        return None
+    try:
+        parts.port  # raises ValueError for a port that isn't a number in range
+    except ValueError:
+        return None
+    if host == urlsplit(PUBLIC_BASE_URL).hostname:
+        return None
     return url
 
 
