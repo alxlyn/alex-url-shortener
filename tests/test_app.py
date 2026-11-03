@@ -168,7 +168,7 @@ class TestRedirectRoute:
         assert await _get_click_count(code) == 3
 
     async def test_unknown_code_returns_404(self, client):
-        r = await client.get("/doesnotexist")
+        r = await client.get("/ZZZZZZ")  # a valid-looking code, so the query runs
         assert r.status_code == 404
 
     async def test_concurrent_visits_are_all_counted(self, client):
@@ -203,7 +203,7 @@ class TestStatsRoute:
         assert re.search(r"Clicks:</b>\s*2\b", r.text)
 
     async def test_unknown_code_returns_404(self, client):
-        r = await client.get("/stats/doesnotexist")
+        r = await client.get("/stats/ZZZZZZ")
         assert r.status_code == 404
 
 
@@ -324,6 +324,31 @@ class TestRateLimiting:
             )
             statuses.append(response.status_code)
         assert statuses[-1] == 429
+
+    async def test_with_two_proxies_the_second_entry_from_the_right_is_the_client(self, client, monkeypatch):
+        import app as app_module
+
+        monkeypatch.setattr(app_module, "TRUSTED_PROXY_HOPS", 2)
+        # Spoofing the leftmost entry doesn't help: the client is still 192.0.2.60.
+        spoofed = []
+        for i in range(11):
+            response = await client.post(
+                "/shorten",
+                data={"long_url": "https://example.com"},
+                headers={"X-Forwarded-For": f"198.51.100.{i}, 192.0.2.60, 10.0.0.1"},
+            )
+            spoofed.append(response.status_code)
+        assert spoofed[-1] == 429
+        # Different clients behind the same two proxies each get their own limit.
+        others = []
+        for i in range(11):
+            response = await client.post(
+                "/shorten",
+                data={"long_url": "https://example.com"},
+                headers={"X-Forwarded-For": f"203.0.113.{i}, 10.0.0.1"},
+            )
+            others.append(response.status_code)
+        assert set(others) == {200}
 
     async def test_without_a_proxy_the_header_is_ignored(self, client, monkeypatch):
         import app as app_module

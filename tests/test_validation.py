@@ -17,6 +17,8 @@ REJECTED = [
     "https://[::1",                      # unclosed bracket, used to crash with a 500
     "https://x\u2100.com/",              # changes under Unicode normalization, also crashed
     "https://%65vil.com",                # percent-escape in the host
+    "https://" + "a" * 64 + ".com",      # a label over 63 characters
+    "https://a..com",                    # an empty label
 ]
 
 ACCEPTED = [
@@ -25,6 +27,7 @@ ACCEPTED = [
     ("http://sub.example.co.uk", "http://sub.example.co.uk"),
     ("example.com:8080/x", "https://example.com:8080/x"),
     ("example.com/?next=https://other.com", "https://example.com/?next=https://other.com"),
+    ("https://b\u00fccher.de/", "https://b\u00fccher.de/"),  # a real non-ASCII domain
 ]
 
 
@@ -42,6 +45,7 @@ def test_accepts(raw, expected):
     "https://sho.rt/abc123",
     "https://SHO.RT/abc123",
     "https://sho.rt./abc123",                         # trailing dot
+    "https://www.sho.rt/abc123",                      # a subdomain
     "https://\uff53\uff48\uff4f.\uff52\uff54/abc123",  # full-width letters
     "https://sho.rt\uff0e/abc123",                     # full-width dot at the end
     "https://sho.rt\u3002/abc123",                     # ideographic full stop

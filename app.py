@@ -220,7 +220,8 @@ def normalize_url(raw: str | None) -> str | None:
     host = browser_host(host)
     if host is None or "." not in host or not HOST_PATTERN.fullmatch(host):
         return None
-    if host == browser_host(urlsplit(PUBLIC_BASE_URL).hostname or ""):
+    own = browser_host(urlsplit(PUBLIC_BASE_URL).hostname or "") or ""
+    if host == own or host.endswith("." + own):  # our host or one of its subdomains
         return None
     return url
 
