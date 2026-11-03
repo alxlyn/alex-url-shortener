@@ -4,6 +4,3 @@ CREATE TABLE IF NOT EXISTS urls (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     clicks INTEGER NOT NULL DEFAULT 0
 );
-
-CREATE INDEX IF NOT EXISTS idx_urls_clicks_code
-ON urls (clicks DESC, code ASC);

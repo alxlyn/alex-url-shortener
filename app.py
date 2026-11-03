@@ -152,12 +152,14 @@ async def stats(request: Request, code: str):
 @app.get("/{code}")
 @limiter.limit("60/minute")
 async def redirect_to_url(request: Request, code: str):
+    # One statement: count the click and read the destination in a single round trip.
     async with db_pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT long_url FROM urls WHERE code = $1", code)
-        if not row:
-            return HTMLResponse("URL not found", status_code=404)
-        await conn.execute("UPDATE urls SET clicks = clicks + 1 WHERE code = $1", code)
-    return RedirectResponse(url=row["long_url"], status_code=302)
+        long_url = await conn.fetchval(
+            "UPDATE urls SET clicks = clicks + 1 WHERE code = $1 RETURNING long_url", code
+        )
+    if long_url is None:
+        return HTMLResponse("URL not found", status_code=404)
+    return RedirectResponse(url=long_url, status_code=302)
 
 
 # -------------------------
@@ -218,9 +220,7 @@ async def init_db() -> None:
             )
             """
         )
-        await conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_urls_clicks_code
-            ON urls (clicks DESC, code ASC)
-            """
-        )
+        # No index on clicks: every redirect updates clicks, and an index on that column
+        # stops Postgres from doing cheap in-place (HOT) updates. Sorting a small table for
+        # the top-10 page is cheaper than rewriting the index on every click.
+        await conn.execute("DROP INDEX IF EXISTS idx_urls_clicks_code")

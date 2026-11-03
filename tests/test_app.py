@@ -2,6 +2,7 @@
 Unit tests for generate_code() and normalize_url(), which need no database,
 and integration tests for every route, which use the test database.
 """
+import asyncio
 import os
 import re
 import string
@@ -169,6 +170,15 @@ class TestRedirectRoute:
     async def test_unknown_code_returns_404(self, client):
         r = await client.get("/doesnotexist")
         assert r.status_code == 404
+
+    async def test_concurrent_visits_are_all_counted(self, client):
+        await client.post("/shorten", data={"long_url": "https://example.com"})
+        code = await _get_first_code()
+        # 50 visits at once, each from a different client so the rate limit doesn't kick in
+        await asyncio.gather(*[
+            client.get(f"/{code}", headers={"X-Forwarded-For": f"10.0.0.{i}"}) for i in range(50)
+        ])
+        assert await _get_click_count(code) == 50
 
 
 class TestStatsRoute:
