@@ -59,12 +59,16 @@ def _get_real_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+# Give up on Redis after 0.2 s. slowapi calls it synchronously, so a Redis that
+# accepts connections but never answers would otherwise hang every request.
+REDIS_OPTIONS = {"socket_timeout": 0.2, "socket_connect_timeout": 0.2}
+
 # If Redis goes down, count in memory instead of failing every request.
 # key_style="endpoint": one counter per route. slowapi's default counts each URL
 # separately, so every short code would get its own fresh limit.
 limiter = Limiter(
     key_func=_get_real_ip, storage_uri=REDIS_URL, headers_enabled=True, in_memory_fallback_enabled=True,
-    key_style="endpoint",
+    key_style="endpoint", storage_options=REDIS_OPTIONS,
 )
 
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
