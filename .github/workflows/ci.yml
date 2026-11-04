@@ -54,3 +54,6 @@ jobs:
 
       - name: Build Docker image
         run: docker build -t url-shortener:ci .
+
+      - name: The image can load the app
+        run: docker run --rm url-shortener:ci python -c "import app, os; assert os.path.isfile('templates/index.html')"
