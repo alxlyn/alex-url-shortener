@@ -18,6 +18,7 @@ from fastapi.templating import Jinja2Templates
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 # -------------------------
 # Configuration
@@ -108,10 +109,35 @@ async def lifespan(app: FastAPI):
     await db_pool.close()
 
 
+MAX_BODY_BYTES = 8 * 1024
+
+
+class BodySizeLimit:
+    """Turns away big POST bodies before anything reads them.
+
+    FastAPI parses the form before slowapi checks the limit, so without this a
+    client over its limit could still make the server read megabytes on every
+    request. The form on the page sends a few hundred bytes.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and scope["method"] == "POST":
+            length = dict(scope["headers"]).get(b"content-length")
+            if length is None:
+                return await HTMLResponse("Length required", status_code=411)(scope, receive, send)
+            if not length.isdigit() or int(length) > MAX_BODY_BYTES:
+                return await HTMLResponse("Request too large", status_code=413)(scope, receive, send)
+        await self.app(scope, receive, send)
+
+
 app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(BodySizeLimit)  # added last, so it runs first
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 

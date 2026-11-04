@@ -391,3 +391,18 @@ async def test_different_codes_share_one_limit(client, prefix, limit):
     headers = {"X-Forwarded-For": "192.0.2.88"}
     statuses = [(await client.get(f"{prefix}Zz{i:04d}", headers=headers)).status_code for i in range(limit + 1)]
     assert statuses[-1] == 429
+
+
+async def test_a_big_post_body_is_turned_away_before_parsing(client):
+    r = await client.post("/shorten", data={"long_url": "https://example.com/" + "a" * 9000})
+    assert r.status_code == 413
+
+
+async def test_a_post_without_a_length_is_refused(client):
+    async def body():
+        yield b"long_url=https%3A%2F%2Fexample.com"
+
+    r = await client.post(
+        "/shorten", content=body(), headers={"Content-Type": "application/x-www-form-urlencoded"}
+    )
+    assert r.status_code == 411
