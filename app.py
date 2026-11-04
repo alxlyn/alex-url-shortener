@@ -53,10 +53,29 @@ def _get_real_ip(request: Request) -> str:
         hops = [hop.strip() for hop in forwarded.split(",") if hop.strip()]
         if len(hops) >= TRUSTED_PROXY_HOPS:
             try:
-                return str(ipaddress.ip_address(hops[-TRUSTED_PROXY_HOPS]))
+                return client_key(ipaddress.ip_address(hops[-TRUSTED_PROXY_HOPS]))
             except ValueError:
                 pass  # not an address, so not something a proxy wrote: use the socket
-    return request.client.host if request.client else "unknown"
+    if not request.client:
+        return "unknown"
+    try:
+        return client_key(ipaddress.ip_address(request.client.host))
+    except ValueError:
+        return request.client.host
+
+
+def client_key(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> str:
+    """The rate-limit bucket for an address.
+
+    IPv4 counts per address. IPv6 counts per /64, because one home or server usually
+    gets a whole /64 and could otherwise rotate through addresses for fresh limits.
+    An IPv4 address written as IPv6 (::ffff:1.2.3.4) counts as that IPv4 address.
+    """
+    if ip.version == 6 and ip.ipv4_mapped:
+        return str(ip.ipv4_mapped)
+    if ip.version == 6:
+        return str(ipaddress.ip_network(f"{ip}/64", strict=False))
+    return str(ip)
 
 
 # Give up on Redis after 0.2 s. slowapi calls it synchronously, so a Redis that

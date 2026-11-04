@@ -1,3 +1,5 @@
+import ipaddress
+
 import pytest
 
 import app as app_module
@@ -66,3 +68,13 @@ def test_the_length_cap_counts_the_added_scheme():
     # 2,048 characters as typed become 2,056 once https:// is added.
     assert normalize_url("example.com/" + "a" * 2036) is None
     assert normalize_url("example.com/" + "a" * 2028) == "https://example.com/" + "a" * 2028
+
+
+@pytest.mark.parametrize("address,key", [
+    ("203.0.113.7", "203.0.113.7"),
+    ("2001:db8:1:2::1", "2001:db8:1:2::/64"),
+    ("2001:db8:1:2:ffff::9", "2001:db8:1:2::/64"),
+    ("::ffff:203.0.113.7", "203.0.113.7"),
+])
+def test_client_keys(address, key):
+    assert app_module.client_key(ipaddress.ip_address(address)) == key

@@ -351,6 +351,18 @@ class TestRateLimiting:
             others.append(response.status_code)
         assert set(others) == {200}
 
+    async def test_ipv6_clients_share_a_limit_per_64(self, client):
+        """Rotating through addresses in one /64 doesn't give a fresh limit."""
+        statuses = []
+        for i in range(1, 12):
+            response = await client.post(
+                "/shorten",
+                data={"long_url": "https://example.com"},
+                headers={"X-Forwarded-For": f"2001:db8:1:2::{i:x}"},
+            )
+            statuses.append(response.status_code)
+        assert statuses[-1] == 429
+
     async def test_without_a_proxy_the_header_is_ignored(self, client, monkeypatch):
         import app as app_module
 
