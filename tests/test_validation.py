@@ -60,3 +60,9 @@ def test_rejects_links_to_the_shortener_itself(monkeypatch, raw):
 def test_rejects_other_spellings_of_its_own_ip(monkeypatch, raw):
     monkeypatch.setattr(app_module, "PUBLIC_BASE_URL", "http://127.0.0.1:8000")
     assert normalize_url(raw) is None
+
+
+def test_the_length_cap_counts_the_added_scheme():
+    # 2,048 characters as typed become 2,056 once https:// is added.
+    assert normalize_url("example.com/" + "a" * 2036) is None
+    assert normalize_url("example.com/" + "a" * 2028) == "https://example.com/" + "a" * 2028

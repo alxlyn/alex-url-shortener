@@ -213,6 +213,8 @@ def normalize_url(raw: str | None) -> str | None:
         if url.startswith("//") or SCHEME_PREFIX.match(url):
             return None
         url = "https://" + url
+    if len(url) > MAX_URL_LENGTH:  # check again now that https:// may have been added
+        return None
 
     try:
         parts = urlsplit(url)
