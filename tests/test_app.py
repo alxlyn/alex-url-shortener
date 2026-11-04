@@ -8,6 +8,7 @@ import re
 import string
 
 import asyncpg
+import pytest
 
 from app import generate_code, normalize_url
 
@@ -363,3 +364,18 @@ class TestRateLimiting:
             )
             statuses.append(response.status_code)
         assert statuses[-1] == 429
+
+
+@pytest.mark.parametrize("path,limit", [("/", 30), ("/stats/ZZZZZZ", 30), ("/ZZZZZZ", 60)])
+async def test_every_route_is_rate_limited(client, path, limit):
+    headers = {"X-Forwarded-For": "192.0.2.77"}
+    for _ in range(limit):
+        assert (await client.get(path, headers=headers)).status_code != 429
+    assert (await client.get(path, headers=headers)).status_code == 429
+
+
+@pytest.mark.parametrize("prefix,limit", [("/stats/", 30), ("/", 60)])
+async def test_different_codes_share_one_limit(client, prefix, limit):
+    headers = {"X-Forwarded-For": "192.0.2.88"}
+    statuses = [(await client.get(f"{prefix}Zz{i:04d}", headers=headers)).status_code for i in range(limit + 1)]
+    assert statuses[-1] == 429
