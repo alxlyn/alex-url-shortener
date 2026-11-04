@@ -78,3 +78,8 @@ def test_the_length_cap_counts_the_added_scheme():
 ])
 def test_client_keys(address, key):
     assert app_module.client_key(ipaddress.ip_address(address)) == key
+
+
+def test_a_host_that_only_ends_with_our_name_is_fine(monkeypatch):
+    monkeypatch.setattr(app_module, "PUBLIC_BASE_URL", "https://sho.rt")
+    assert normalize_url("https://notsho.rt/abc") == "https://notsho.rt/abc"
