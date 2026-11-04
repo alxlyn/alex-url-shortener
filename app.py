@@ -319,6 +319,6 @@ async def init_db() -> None:
             )
             """
         )
-        # No index on clicks: nothing searches by it, every redirect updates it, and an
-        # index on that column stops Postgres from doing cheap in-place (HOT) updates.
+        # No index on clicks. Nothing searches by it, and since every redirect updates
+        # it, an index there would stop Postgres from doing cheap in-place (HOT) updates.
         await conn.execute("DROP INDEX IF EXISTS idx_urls_clicks_code")

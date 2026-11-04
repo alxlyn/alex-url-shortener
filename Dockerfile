@@ -9,7 +9,7 @@ RUN uv sync --frozen --no-dev
 
 COPY . .
 
-# Run as a normal user, not root.
+# Don't run as root.
 RUN useradd --create-home appuser
 USER appuser
 
